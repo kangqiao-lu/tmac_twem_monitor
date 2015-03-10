@@ -1,0 +1,13 @@
+test:
+  listen: 0.0.0.0:26389
+  redis: true
+  hash: fnv1a_64
+  distribution: ketama
+  preconnect: true
+  auto_eject_hosts: true
+  timeout: 400
+  server_retry_timeout: 2000
+  server_failure_limit: 3
+  servers:
+   - 192.168.117.111:6389:1
+   - 192.168.117.222:6389:1

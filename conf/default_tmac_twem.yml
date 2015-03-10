@@ -1,0 +1,16 @@
+global:
+   log_file: /usr/local/tmac_twemproxy_monitor/logs/tmac_twem_monitor.log
+   delay_loop: 15
+
+tw_module:
+    test:
+       sentinels:
+          - 192.168.129.211:28000
+          - 192.168.129.211:29000
+       twem_config: /usr/local/twemproxy/conf/test_nutcracker.yml
+       twem_cmd: /etc/init.d/nutcracker_test restart
+    ceshi:
+       sentinels:
+          - 192.168.129.211:28001
+       twem_config: /usr/local/webserver/twemproxy/conf/ceshi_nutcracker.yml
+       twem_cmd: /etc/init.d/nutcracker_ceshi restart

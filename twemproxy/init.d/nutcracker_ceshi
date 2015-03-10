@@ -1,0 +1,116 @@
+#!/bin/bash
+#产品线名称
+class='ceshi'
+#每个产品线对应唯一的mon_port
+mon_port=22281
+#twemproxy path
+twem_path="/usr/local/twemproxy"
+
+sbin_file="${twem_path}/sbin/nutcracker_${class}"
+conf_file="${twem_path}/conf/${class}_nutcracker.yml"
+log_path="${twem_path}/logs"
+pid_file="${log_path}/${class}_nutcracker.pid"
+log_file="${log_path}/${class}_nutcracker.log"
+
+start_cmd="$sbin_file -d -c $conf_file -o $log_file -p $pid_file -v 4 -s $mon_port"
+
+usage() {
+echo "Usage: $0 {start|stop|restart|log_level_up|log_level_down}"
+exit 1          
+}
+
+proxy_start() {
+        $sbin_file -t -c $conf_file >/dev/null 2>&1
+        if [ $? -ne 0 ];then
+                echo "nutcracker_${class}: configuration file $conf_file syntax is invalid"
+                exit 1
+        else
+                if ! [ -d $log_path ];then
+                        echo "nutcracker_${class}: log path $log_path is not exist"
+                        exit 1
+                fi
+                if [ -f $pid_file ];then
+                        echo "nutcracker_${class} (pid $pid_file) already running"
+                        exit 1
+                fi
+                $start_cmd
+                if [ $? -ne 0 ];then
+                        echo "nutcracker_${class} start failed"
+                        exit 1
+                else
+                        echo "nutcracker_${class} started"
+                        exit 0
+                fi
+        fi
+}
+
+proxy_stop() {
+        if [ -f $pid_file ];then
+                PID=`cat $pid_file`
+                kill -9 $PID
+                if [ $? -ne 0 ];then
+                        echo "nutcracker_${class} stop failed"
+                        exit 1
+                else
+                        echo "nutcracker_${class} stopped"
+                        rm -f $pid_file
+                fi
+        else
+                PIDS=`ps aux | grep $conf_file | grep $sbin_file | grep -v grep | awk '{print $2}'`
+                for PID in $PIDS
+                do
+                        kill -9 $PID
+                done
+                echo "nutcracker_${class} stopped"
+        fi
+}
+
+proxy_log() {
+        action=$1
+        if ! [ -f $pid_file ];then
+                echo "is the nutcracker_${class} running? the pid file($pid_file) is not found"
+        fi
+        PID=`cat $pid_file`
+        if [ $action == "up" ];then
+                kill -s TTIN $PID >/dev/null 2>&1
+                if [ $? -ne 0 ];then
+                        echo "log level up failed"
+                        exit 1
+                else
+                        echo "log level +1 OK"
+                fi
+        fi
+        if [ $action == "down" ];then
+                kill -s TTOU $PID >/dev/null 2>&1
+                if [ $? -ne 0 ];then
+                        echo "log level down failed"
+                        exit 1
+                else
+                        echo "log level -1 OK"
+                fi
+        fi
+
+}
+
+arg=$1
+case $arg in
+        start)
+                proxy_start
+                ;;
+        stop)
+                proxy_stop
+                ;;
+        restart)
+                proxy_stop
+                sleep 0.5
+                proxy_start
+                ;;
+        log_level_up)
+                proxy_log up
+                ;;
+        log_level_down)
+                proxy_log down
+                ;;
+        *)
+                usage;;
+esac

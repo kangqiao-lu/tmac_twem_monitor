@@ -1,5 +1,5 @@
 ceshi:
-  listen: 0.0.0.0:26389
+  listen: 0.0.0.0:26381
   redis: true
   hash: fnv1a_64
   distribution: ketama
@@ -9,4 +9,4 @@ ceshi:
   server_retry_timeout: 2000
   server_failure_limit: 3
   servers:
-   - 192.168.117.333:6389:1
+   - 192.168.117.333:6381:1

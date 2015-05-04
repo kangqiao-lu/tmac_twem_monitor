@@ -1,12 +1,7 @@
 ###Twemproxy空闲连接越来越多问题
 *	前一段时间线上一个很稳定的twemproxy突然挂掉了，日志显示“to many open files”！惊讶之余，netstat -an发现，连接真的超过了我们设定的65535限制，而且几乎都被其中一个twemproxy打满。然后在看连接这个twemproxy的机器来看，都是来自他们自己业务线的机器，每个机器过来的连接都上万了，要知道，我们是5台twemproxy通过lvs做的负载均衡，相当于每个业务线的client机器和每个twemproxy机器都有10000个连接，且连接状态都是ESTABLISHED，于是很气愤的去找相关开发人员说，你们怎么可以用这么多的连接呢？是不是长连接没有复用？！然后开发很委屈的去看他们的client机器上看，发现他们那边压根就没那么多的连接，也就100左右。那么问题来了，我的这边连接明明摆着，究竟是哪来的呢？！
 *	首先介绍我们线上redis环境：
-*                                                                               |——> twemproxy   —————>|    R
-*                                                                               |——> twemproxy   —————>|    E
-*											 client   ———————> lvs ————————>    |——> twemproxy   —————>|    D
-*                                                                    tunl       | ——> twemproxy  —————>|    I
-*                                                                               |——> twemproxy   —————>|    S
-
+*	![redis架构图](./tmac_monitor_twem.png)
 
 *	client请求redis，会先落在lvs上，lvs通过tunl模式，负载均衡落在5台相同配置的twemproxy机器上（每台twemproxy配置都是相同的，指向同一个redis）,最终所有请求落在一个redis上。
 开始一步步排查：
@@ -18,8 +13,8 @@
 ######2，怀疑lvs把client发的F包或者R包丢了。
 *	咨询了相关人员，觉得这是不可能的，于是把线上通过lvs连接twemproxy的方式改成直接连接后端的其中一台twemproxy，结果发现，没有任何问题，连接是保持很低，且客户端和twemproxy这边连接数能够对的上。那么，难道使我们tunl模式的问题，因为我们MySQL也用到了lvs，但是都是DR模式，但是没出现相同的问题。
 *	然后开始换成DR模式，上线测试，发现连接数开始增长，问题跟开始一样。lvs丢包排除。
-######3，在lvs上抓包，重新分析
 
+######3，在lvs上抓包，重新分析
 *	自己用python长连接通过lvs连接twemproxy，然后分别在twemproxy机器，lvs，Python的client机器装包，发现，建立连接，请求数据都很正常，然后问题来了，lvs这边的包发现了问题，每隔5s就给client发一个R包，这样，5s后，client这边就把连接关了，twemproxy这边由于没有对idle连接做回收，这个ESTABLISHED连接就一直存在。线上环境中，当lvs发R包把client连接给关闭后，client请求redis时还会在从重连，5s后，client又被关闭，又重连，就这样一直循环着导致twemproxy这边连接越来越多。
 *	那么问题来了，lvs为什么会每隔5s就给client发R包，让它断开连接呢？
 *	lvs有一个参数，保持连接的时间：
